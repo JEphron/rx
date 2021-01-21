@@ -5,7 +5,7 @@ use directories as dirs;
 
 use rgx::kit::Rgba8;
 
-use crate::brush::BrushMode;
+use crate::brush::{BrushMode, BrushShape};
 use crate::platform;
 use crate::session::{Direction, Mode, VisualState};
 
@@ -175,6 +175,25 @@ impl Parse for BrushMode {
                 }
             },
             "<mode>",
+        )
+    }
+}
+
+impl Parse for BrushShape {
+    fn parser() -> Parser<Self> {
+        Parser::new(
+            |input| {
+                let (id, p) = identifier().parse(input)?;
+                match id.as_str() {
+                    "square" => Ok((BrushShape::Square(1), p)),
+                    "circle" => Ok((BrushShape::Circle(2), p)),
+                    mode => Err((
+                        memoir::result::Error::new(format!("unknown brush shape '{}'", mode)),
+                        input,
+                    )),
+                }
+            },
+            "<shape>",
         )
     }
 }

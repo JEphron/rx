@@ -1,4 +1,3 @@
-///! Session
 use crate::autocomplete::FileCompleter;
 use crate::brush::*;
 use crate::cmd::{self, Command, CommandLine, KeyMapping, Op, Value};
@@ -2313,10 +2312,10 @@ impl Session {
                                 let mut p: LayerCoords<i32> = p.into();
                                 if brush.is_set(BrushMode::Multi) {
                                     p.clamp(Rect::new(
-                                        (brush.size / 2) as i32,
-                                        (brush.size / 2) as i32,
-                                        vw as i32 - (brush.size / 2) as i32 - 1,
-                                        vh as i32 - (brush.size / 2) as i32 - 1,
+                                        (brush.size() / 2) as i32,
+                                        (brush.size() / 2) as i32,
+                                        vw as i32 - (brush.size() / 2) as i32 - 1,
+                                        vh as i32 - (brush.size() / 2) as i32 - 1,
                                     ));
                                     brush.draw(p);
                                 } else {
@@ -2710,23 +2709,23 @@ impl Session {
             Command::Brush => {
                 self.unimplemented();
             }
+            Command::BrushShape(shape) => {
+                if let Tool::Brush(ref mut b) = self.tool {
+                    b.shape = shape;
+                }
+            }
             Command::BrushSize(op) => {
                 if let Tool::Brush(ref mut b) = self.tool {
                     match op {
                         Op::Incr => {
-                            b.size += 1;
-                            b.size += b.size % 2;
+                            b.incr_size();
                         }
                         Op::Decr => {
-                            b.size -= 1;
-                            b.size -= b.size % 2;
+                            b.decr_size();
                         }
                         Op::Set(s) => {
-                            b.size = s as usize;
+                            b.set_size(s as u32);
                         }
-                    }
-                    if b.size < Self::MIN_BRUSH_SIZE {
-                        b.size = Self::MIN_BRUSH_SIZE;
                     }
                 }
             }

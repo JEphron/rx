@@ -23,6 +23,23 @@ pub enum BrushState {
     DrawEnded(ViewExtent),
 }
 
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum BrushShape {
+    /// Edge width
+    Square(u32),
+    /// Diameter
+    Circle(u32),
+}
+
+impl fmt::Display for BrushShape {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Square(s) => write!(f, "square({})", s),
+            Self::Circle(s) => write!(f, "circle({})", s),
+        }
+    }
+}
+
 /// Brush mode. Any number of these modes can be active at once.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug)]
 pub enum BrushMode {
@@ -62,8 +79,8 @@ pub enum Align {
 /// Brush context.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Brush {
-    /// Brush size in pixels.
-    pub size: usize,
+    /// Shape of the brush
+    pub shape: BrushShape,
     /// Current brush state.
     pub state: BrushState,
     /// Current brush stroke.
@@ -82,7 +99,7 @@ pub struct Brush {
 impl Default for Brush {
     fn default() -> Self {
         Self {
-            size: 1,
+            shape: BrushShape::Square(1),
             state: BrushState::NotDrawing,
             stroke: Vec::with_capacity(32),
             color: Rgba8::TRANSPARENT,
@@ -129,6 +146,54 @@ impl Brush {
     #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.modes.clear();
+    }
+
+    pub fn incr_size(&mut self) {
+        match self.shape {
+            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s) => {
+                *s += 1;
+                *s += *s % 2;
+            }
+        }
+        self.clamp_size();
+    }
+
+    pub fn decr_size(&mut self) {
+        match self.shape {
+            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s) => {
+                *s -= 1;
+                *s -= *s % 2;
+            }
+        }
+        self.clamp_size();
+    }
+
+    pub fn set_size(&mut self, size: u32) {
+        match self.shape {
+            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s) => {
+                *s = size;
+            }
+        }
+        self.clamp_size();
+    }
+
+    fn clamp_size(&mut self) {
+        match self.shape {
+            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s) => {
+                if *s < 1 {
+                    // TODO: MIN_BRUSH_SIZE is a Session constant
+                    *s = 1;
+                }
+            }
+        }
+    }
+
+    pub fn size(&self) -> u32 {
+        // not sure what this is going to be for elliptical/rectangular brushes
+        match self.shape {
+            BrushShape::Circle(s) => s,
+            BrushShape::Square(s) => s,
+        }
     }
 
     /// Run every frame by the session.
@@ -229,7 +294,7 @@ impl Brush {
                 }
                 pixels
                     .iter()
-                    .map(|p| {
+                    .flat_map(|p| {
                         self.shape(
                             Point2::new(p.x as f32, p.y as f32),
                             ZDepth::ZERO,
@@ -257,24 +322,69 @@ impl Brush {
         fill: Fill,
         scale: f32,
         align: Align,
-    ) -> Shape {
+    ) -> Vec<Shape> {
         let x = p.x;
         let y = p.y;
 
-        let size = self.size as f32;
+        match self.shape {
+            BrushShape::Square(size) => {
+                let sizef = size as f32;
 
-        let offset = match align {
-            Align::Center => size * scale / 2.,
-            Align::BottomLeft => (self.size / 2) as f32 * scale,
-        };
+                let offset = match align {
+                    Align::Center => sizef * scale / 2.,
+                    Align::BottomLeft => (size / 2) as f32 * scale,
+                };
 
-        Shape::Rectangle(
-            Rect::new(x, y, x + size * scale, y + size * scale) - Vector2::new(offset, offset),
-            z,
-            Rotation::ZERO,
-            stroke,
-            fill,
-        )
+                vec![Shape::Rectangle(
+                    Rect::new(x, y, x + sizef * scale, y + sizef * scale)
+                        - Vector2::new(offset, offset),
+                    z,
+                    Rotation::ZERO,
+                    stroke,
+                    fill,
+                )]
+            }
+            BrushShape::Circle(size) => {
+                let size = size as usize;
+                let sizef = size as f32;
+                // todo: store this on the BrushShape
+                let mut canvas = vec![Rgba8::TRANSPARENT; size * size];
+                Brush::paint(
+                    &mut canvas,
+                    size,
+                    size,
+                    Point2::new(sizef / 2.0, sizef / 2.0),
+                    sizef / 2.,
+                    Rgba8::WHITE,
+                );
+
+                let offset = match align {
+                    Align::Center => sizef * scale / 2.,
+                    Align::BottomLeft => (size / 2) as f32 * scale,
+                };
+
+                canvas
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, p)| {
+                        let (nx, ny) = ((i % size) as f32, (i / size) as f32);
+                        if *p == Rgba8::WHITE {
+                            Some(Shape::Rectangle(
+                                Rect::new(x, y, x + 1., y + 1.)
+                                    + Vector2::new(nx * scale, ny * scale)
+                                    - Vector2::new(offset, offset),
+                                z,
+                                Rotation::ZERO,
+                                stroke,
+                                fill,
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            }
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////////

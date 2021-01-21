@@ -673,19 +673,21 @@ fn draw_brush(session: &Session, shapes: &mut shape2d::Batch) {
                     };
 
                     for p in brush.expand(view_coords.into(), v.extent()) {
-                        shapes.add(brush.shape(
+                        for s in brush.shape(
                             *session.session_coords(v.id, p.into()),
                             self::BRUSH_LAYER,
                             stroke,
                             fill,
                             v.zoom,
                             Align::BottomLeft,
-                        ));
+                        ) {
+                            shapes.add(s);
+                        }
                     }
 
                     // X-Ray brush mode.
                     if brush.is_set(BrushMode::XRay)
-                        && brush.size == 1
+                        && brush.size() == 1
                         && v.zoom >= self::XRAY_MIN_ZOOM
                     {
                         let p: LayerCoords<u32> = layer_coords.into();
@@ -710,14 +712,16 @@ fn draw_brush(session: &Session, shapes: &mut shape2d::Batch) {
                     } else {
                         session.fg
                     };
-                    shapes.add(brush.shape(
+                    for s in brush.shape(
                         *c,
                         self::UI_LAYER,
                         Stroke::new(1.0, color.into()),
                         Fill::Empty,
                         v.zoom,
                         Align::Center,
-                    ));
+                    ) {
+                        shapes.add(s);
+                    }
                 }
             }
         }

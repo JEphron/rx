@@ -1,5 +1,5 @@
 use crate::autocomplete::{self, Autocomplete, FileCompleter, FileCompleterOpts};
-use crate::brush::{Brush, BrushMode};
+use crate::brush::{Brush, BrushMode, BrushShape};
 use crate::history::History;
 use crate::parser::*;
 use crate::platform;
@@ -41,6 +41,7 @@ pub enum Command {
     BrushToggle(BrushMode),
     BrushSize(Op),
     BrushUnset(BrushMode),
+    BrushShape(BrushShape),
 
     #[allow(dead_code)]
     Crop(Rect<u32>),
@@ -155,6 +156,7 @@ impl fmt::Display for Command {
         match self {
             Self::Brush => write!(f, "Reset brush"),
             Self::BrushSet(m) => write!(f, "Set brush mode to `{}`", m),
+            Self::BrushShape(s) => write!(f, "Set brush shape to `{}`", s),
             Self::BrushToggle(m) => write!(f, "Toggle `{}` brush mode", m),
             Self::BrushSize(Op::Incr) => write!(f, "Increase brush size"),
             Self::BrushSize(Op::Decr) => write!(f, "Decrease brush size"),
@@ -250,6 +252,7 @@ impl From<Command> for String {
         match cmd {
             Command::Brush => format!("brush"),
             Command::BrushSet(m) => format!("brush/set {}", m),
+            Command::BrushShape(s) => format!("brush/shape {}", s),
             Command::BrushSize(Op::Incr) => format!("brush/size +"),
             Command::BrushSize(Op::Decr) => format!("brush/size -"),
             Command::BrushSize(Op::Set(s)) => format!("brush/size {}", s),
@@ -817,6 +820,14 @@ impl Default for Commands {
                 |p| {
                     p.then(param::<BrushMode>())
                         .map(|(_, m)| Command::BrushSet(m))
+                },
+            )
+            .command(
+                "brush/shape",
+                "Set brush shape. Valid arguments are 'square' and 'circle'.",
+                |p| {
+                    p.then(param::<BrushShape>())
+                        .map(|(_, m)| Command::BrushShape(m))
                 },
             )
             .command("brush/unset", "Unset brush mode", |p| {
