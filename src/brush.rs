@@ -27,15 +27,27 @@ pub enum BrushState {
 pub enum BrushShape {
     /// Edge width
     Square(u32),
-    /// Diameter
-    Circle(u32),
+    Circle(
+        u32,        // diameter
+        Vec<Rgba8>, // stamp
+    ),
+}
+
+impl BrushShape {
+    pub fn square(side_length: u32) -> Self {
+        BrushShape::Square(side_length)
+    }
+
+    pub fn circle(diameter: u32) -> Self {
+        BrushShape::Circle(diameter, circular_stamp(diameter as f32))
+    }
 }
 
 impl fmt::Display for BrushShape {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Square(s) => write!(f, "square({})", s),
-            Self::Circle(s) => write!(f, "circle({})", s),
+            Self::Circle(s, _) => write!(f, "circle({})", s),
         }
     }
 }
@@ -150,49 +162,51 @@ impl Brush {
 
     pub fn incr_size(&mut self) {
         match self.shape {
-            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s) => {
+            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s, _) => {
                 *s += 1;
                 *s += *s % 2;
             }
         }
-        self.clamp_size();
+        self.handle_size_change();
     }
 
     pub fn decr_size(&mut self) {
         match self.shape {
-            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s) => {
+            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s, _) => {
                 *s -= 1;
                 *s -= *s % 2;
             }
         }
-        self.clamp_size();
+        self.handle_size_change();
     }
 
     pub fn set_size(&mut self, size: u32) {
         match self.shape {
-            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s) => {
+            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s, _) => {
                 *s = size;
             }
         }
-        self.clamp_size();
+        self.handle_size_change();
     }
 
-    fn clamp_size(&mut self) {
+    fn handle_size_change(&mut self) {
         match self.shape {
-            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s) => {
+            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s, _) => {
+                // clamp size
                 if *s < 1 {
                     // TODO: MIN_BRUSH_SIZE is a Session constant
                     *s = 1;
                 }
             }
         }
+        if let BrushShape::Circle(s, ref mut stamp) = self.shape {
+            *stamp = circular_stamp(s as f32);
+        }
     }
 
     pub fn size(&self) -> u32 {
-        // not sure what this is going to be for elliptical/rectangular brushes
         match self.shape {
-            BrushShape::Circle(s) => s,
-            BrushShape::Square(s) => s,
+            BrushShape::Square(s) | BrushShape::Circle(s, _) => s,
         }
     }
 
@@ -326,9 +340,9 @@ impl Brush {
         let x = p.x;
         let y = p.y;
 
-        match self.shape {
+        match &self.shape {
             BrushShape::Square(size) => {
-                let sizef = size as f32;
+                let sizef = *size as f32;
 
                 let offset = match align {
                     Align::Center => sizef * scale / 2.,
@@ -344,33 +358,21 @@ impl Brush {
                     fill,
                 )]
             }
-            BrushShape::Circle(size) => {
-                let size = size as usize;
-                let sizef = size as f32;
-                // todo: store this on the BrushShape
-                let mut canvas = vec![Rgba8::TRANSPARENT; size * size];
-                Brush::paint(
-                    &mut canvas,
-                    size,
-                    size,
-                    Point2::new(sizef / 2.0, sizef / 2.0),
-                    sizef / 2.,
-                    Rgba8::WHITE,
-                );
-
+            BrushShape::Circle(size, stamp) => {
+                let size = (*size * 2) as usize;
                 let offset = match align {
-                    Align::Center => sizef * scale / 2.,
+                    Align::Center => size as f32 * scale / 2.,
                     Align::BottomLeft => (size / 2) as f32 * scale,
                 };
 
-                canvas
+                stamp
                     .iter()
                     .enumerate()
                     .filter_map(|(i, p)| {
                         let (nx, ny) = ((i % size) as f32, (i / size) as f32);
                         if *p == Rgba8::WHITE {
                             Some(Shape::Rectangle(
-                                Rect::new(x, y, x + 1., y + 1.)
+                                Rect::new(x, y, x + scale, y + scale)
                                     + Vector2::new(nx * scale, ny * scale)
                                     - Vector2::new(offset, offset),
                                 z,
@@ -474,6 +476,20 @@ impl Brush {
 
         filtered
     }
+}
+
+fn circular_stamp(diameter: f32) -> Vec<Rgba8> {
+    let size = (diameter * 2.0) as usize;
+    let mut canvas = vec![Rgba8::TRANSPARENT; size * size];
+    Brush::paint(
+        &mut canvas,
+        size,
+        size,
+        Point2::new(size as f32 / 2.0, size as f32 / 2.0),
+        diameter,
+        Rgba8::WHITE,
+    );
+    canvas
 }
 
 #[cfg(test)]

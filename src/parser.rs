@@ -185,8 +185,8 @@ impl Parse for BrushShape {
             |input| {
                 let (id, p) = identifier().parse(input)?;
                 match id.as_str() {
-                    "square" => Ok((BrushShape::Square(1), p)),
-                    "circle" => Ok((BrushShape::Circle(2), p)),
+                    "square" => Ok((BrushShape::square(1), p)),
+                    "circle" => Ok((BrushShape::circle(2), p)),
                     mode => Err((
                         memoir::result::Error::new(format!("unknown brush shape '{}'", mode)),
                         input,
