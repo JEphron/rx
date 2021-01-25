@@ -162,19 +162,26 @@ impl Brush {
 
     pub fn incr_size(&mut self) {
         match self.shape {
-            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s, _) => {
+            BrushShape::Square(ref mut s) => {
                 *s += 1;
                 *s += *s % 2;
             }
+            BrushShape::Circle(ref mut s, _) => {
+                *s += 1;
+            }
+
         }
         self.handle_size_change();
     }
 
     pub fn decr_size(&mut self) {
         match self.shape {
-            BrushShape::Square(ref mut s) | BrushShape::Circle(ref mut s, _) => {
+            BrushShape::Square(ref mut s) => {
                 *s -= 1;
                 *s -= *s % 2;
+            }
+            BrushShape::Circle(ref mut s, _) => {
+                *s += 1;
             }
         }
         self.handle_size_change();
